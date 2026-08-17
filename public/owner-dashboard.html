@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Owner Dashboard — Mr Sithija AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#000000; --surface:#0a0a0a; --surface-2:#111111;
+  --border:rgba(255,255,255,0.10); --border-strong:rgba(255,255,255,0.18);
+  --text:#fafafa; --muted:#888888; --danger:#ef4444; --success:#3ecf6a;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--text);min-height:100dvh;width:100vw;display:flex;justify-content:center;}
+.container{width:100%;max-width:480px;min-height:100dvh;border-left:1px solid var(--border);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+.header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:rgba(0,0,0,0.9);backdrop-filter:blur(12px);z-index:5;}
+.header h1{font-size:1rem;font-weight:600;letter-spacing:-0.2px;}
+.header .badge{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted);margin-top:2px;}
+.logout-btn{font-size:0.75rem;color:var(--muted);background:var(--surface);border:1px solid var(--border-strong);padding:7px 12px;border-radius:7px;cursor:pointer;}
+.content{padding:16px;flex:1;padding-bottom:90px;}
+.stats-row{display:flex;gap:10px;margin-bottom:14px;}
+.stat-card{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.stat-card .n{font-size:1.3rem;font-weight:700;}
+.stat-card .l{font-size:0.68rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px;}
+
+.toolbar{display:flex;gap:8px;margin-bottom:14px;}
+.toolbar button{flex:1;font-size:0.72rem;padding:8px 0;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text);cursor:pointer;font-family:'JetBrains Mono',monospace;}
+.toolbar button:active{transform:scale(0.97);}
+
+.user-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start;transition:border-color .15s;}
+.user-card.selected{border-color:var(--text);}
+.user-check{width:18px;height:18px;margin-top:2px;accent-color:var(--text);flex-shrink:0;}
+.user-card-body{flex:1;min-width:0;}
+.user-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.user-email{font-size:0.88rem;font-weight:500;word-break:break-all;}
+.tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+.tag{font-family:'JetBrains Mono',monospace;font-size:0.62rem;padding:2px 8px;border-radius:5px;border:1px solid var(--border-strong);color:var(--muted);}
+.tag.pro{color:#000;background:var(--text);border-color:var(--text);}
+.tag.owner{color:var(--success);border-color:rgba(62,207,106,0.4);}
+.tag.banned{color:var(--danger);border-color:rgba(239,68,68,0.4);}
+.usage-line{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--muted);margin-top:10px;}
+.actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.btn{flex:1;font-size:0.76rem;padding:8px 0;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text);cursor:pointer;min-width:80px;}
+.btn.primary{background:var(--text);color:#000;border-color:var(--text);}
+.btn.danger{color:var(--danger);border-color:rgba(239,68,68,0.4);}
+.btn:active{transform:scale(0.97);}
+.empty,.loading{text-align:center;color:var(--muted);font-size:0.85rem;padding:40px 20px;}
+.ban-reason{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--danger);margin-top:6px;}
+
+/* API key row */
+.apikey-row{margin-top:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;}
+.apikey-text{flex:1;font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.apikey-row .mini-btn{font-size:0.65rem;padding:5px 9px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;}
+.apikey-row .mini-btn.danger{color:var(--danger);border-color:rgba(239,68,68,0.4);}
+
+/* Analytics card */
+.analytics-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+.analytics-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.analytics-title{font-size:0.85rem;font-weight:600;}
+.analytics-sub{font-size:0.68rem;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.mini-stats{display:flex;gap:10px;margin-bottom:12px;}
+.mini-stat{flex:1;text-align:center;}
+.mini-stat .n{font-size:1.05rem;font-weight:700;}
+.mini-stat .l{font-size:0.62rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px;}
+.chart-wrap{height:140px;position:relative;}
+.top-users{margin-top:14px;}
+.top-users-title{font-size:0.68rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px;}
+.top-user-row{display:flex;justify-content:space-between;font-size:0.78rem;padding:6px 0;border-bottom:1px solid var(--border);}
+.top-user-row:last-child{border-bottom:none;}
+.top-user-row .cnt{font-family:'JetBrains Mono',monospace;color:var(--muted);}
+
+/* Maintenance mode card */
+.maint-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+.maint-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;}
+.maint-title{font-size:0.85rem;font-weight:600;}
+.maint-sub{font-size:0.68rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px;}
+.switch{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;}
+.switch input{opacity:0;width:0;height:0;}
+.switch-track{position:absolute;cursor:pointer;inset:0;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:20px;transition:.15s;}
+.switch-track::before{content:"";position:absolute;height:16px;width:16px;left:3px;top:2.5px;background:var(--muted);border-radius:50%;transition:.15s;}
+.switch input:checked + .switch-track{background:rgba(239,68,68,0.18);border-color:var(--danger);}
+.switch input:checked + .switch-track::before{transform:translateX(18px);background:var(--danger);}
+.maint-card textarea{width:100%;min-height:60px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;padding:10px;color:var(--text);font-size:0.8rem;font-family:inherit;resize:vertical;margin-bottom:10px;}
+
+/* Bulk action bar — appears once one or more users are checked */
+.bulk-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(110%);width:100%;max-width:480px;background:var(--surface-2);border-top:1px solid var(--border-strong);padding:10px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;transition:transform .2s ease;z-index:10;}
+.bulk-bar.show{transform:translateX(-50%) translateY(0);}
+.bulk-count{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted);white-space:nowrap;width:100%;margin-bottom:2px;}
+.bulk-bar button{font-size:0.66rem;padding:8px 6px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;flex:1;min-width:56px;}
+.bulk-bar button.danger{color:var(--danger);border-color:rgba(239,68,68,0.4);}
+
+/* Modal — shared for delete confirm + notify compose */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:flex-end;justify-content:center;z-index:20;}
+.modal-backdrop.show{display:flex;}
+.modal{width:100%;max-width:480px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:14px 14px 0 0;padding:20px 18px 24px;}
+.modal h3{font-size:0.95rem;margin-bottom:8px;}
+.modal p{font-size:0.82rem;color:var(--muted);line-height:1.4;margin-bottom:14px;}
+.modal textarea{width:100%;min-height:90px;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:10px;color:var(--text);font-size:0.85rem;font-family:inherit;resize:vertical;margin-bottom:14px;}
+.modal-actions{display:flex;gap:10px;}
+.modal-actions button{flex:1;padding:10px 0;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.82rem;}
+.modal-actions button.confirm{background:var(--danger);border-color:var(--danger);color:#fff;}
+.modal-actions button.confirm.ok{background:var(--text);border-color:var(--text);color:#000;}
+
+/* Published pages card */
+.publish-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+.publish-card-title{font-size:0.85rem;font-weight:600;margin-bottom:10px;}
+.publish-row{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;}
+.publish-row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.publish-link{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--text);word-break:break-all;}
+.publish-meta{font-size:0.68rem;color:var(--muted);margin-top:4px;}
+.publish-row .actions{margin-top:8px;}
+.publish-row .btn{font-size:0.7rem;padding:7px 0;}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Owner Dashboard</h1>
+      <div class="badge" id="ownerEmail"></div>
+    </div>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="content">
+    <div class="stats-row">
+      <div class="stat-card"><div class="n" id="statTotal">—</div><div class="l">total users</div></div>
+      <div class="stat-card"><div class="n" id="statPro">—</div><div class="l">pro users</div></div>
+      <div class="stat-card"><div class="n" id="statBanned">—</div><div class="l">banned</div></div>
+    </div>
+
+    <div class="analytics-card">
+      <div class="analytics-top">
+        <div>
+          <div class="analytics-title">Usage analytics</div>
+          <div class="analytics-sub" id="analyticsSub">Loading…</div>
+        </div>
+      </div>
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="n" id="statToday">—</div><div class="l">requests today</div></div>
+        <div class="mini-stat"><div class="n" id="statPeriod">—</div><div class="l">last 14 days</div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="usageChart"></canvas></div>
+      <div class="top-users">
+        <div class="top-users-title">Top users (all-time)</div>
+        <div id="topUsersList"></div>
+      </div>
+    </div>
+
+    <div class="maint-card" id="maintCard">
+      <div class="maint-top">
+        <div>
+          <div class="maint-title">Maintenance mode</div>
+          <div class="maint-sub" id="maintStatus">Loading…</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="maintToggle">
+          <span class="switch-track"></span>
+        </label>
+      </div>
+      <textarea id="maintMessage" placeholder="Message shown to users while maintenance is on…"></textarea>
+      <button class="btn primary" id="maintSaveBtn" style="width:100%;">Save</button>
+    </div>
+
+    <div class="publish-card">
+      <div class="publish-card-title">Published pages</div>
+      <div id="publishList" class="loading">Loading…</div>
+    </div>
+
+    <div class="toolbar">
+      <button id="selectAllBtn">Select all</button>
+      <button id="clearSelBtn">Clear selection</button>
+    </div>
+    <div id="userList" class="loading">Loading users…</div>
+  </div>
+</div>
+
+<div class="bulk-bar" id="bulkBar">
+  <span class="bulk-count" id="bulkCount">0 selected</span>
+  <button onclick="bulkPro(true)">Make Pro</button>
+  <button onclick="bulkPro(false)">Remove Pro</button>
+  <button onclick="openBulkBan()">Ban</button>
+  <button onclick="bulkUnban()">Unban</button>
+  <button onclick="openNotify()">Notify</button>
+  <button class="danger" onclick="confirmBulkDelete()">Delete</button>
+</div>
+
+<!-- Delete confirm modal (reused for single + bulk delete) -->
+<div class="modal-backdrop" id="deleteModal">
+  <div class="modal">
+    <h3 id="deleteTitle">Delete account?</h3>
+    <p id="deleteBody">This permanently removes the account and all of its chat history. This can't be undone.</p>
+    <div class="modal-actions">
+      <button onclick="closeModal('deleteModal')">Cancel</button>
+      <button class="confirm" id="deleteConfirmBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ban reason modal (reused for single + bulk ban) -->
+<div class="modal-backdrop" id="banModal">
+  <div class="modal">
+    <h3 id="banTitle">Ban account?</h3>
+    <p>They'll be signed out immediately and blocked from logging in or chatting. Reversible anytime from Unban.</p>
+    <textarea id="banReasonText" placeholder="Reason (optional, shown to you only)…"></textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal('banModal')">Cancel</button>
+      <button class="confirm" id="banConfirmBtn">Ban</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notify compose modal -->
+<div class="modal-backdrop" id="notifyModal">
+  <div class="modal">
+    <h3 id="notifyTitle">Send a message</h3>
+    <p>Sent as an in-app notification and by email to each selected user.</p>
+    <textarea id="notifyText" placeholder="Type your message…"></textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal('notifyModal')">Cancel</button>
+      <button class="confirm ok" onclick="sendNotify()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = ""; // same origin — set full URL if hosted separately
+const token = localStorage.getItem("token");
+
+if (!token) {
+  window.location.href = "login.html";
+}
+
+let allUsers = [];
+const selected = new Set();
+
+async function authedFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {})
+    }
+  });
+  if (res.status === 401 || res.status === 403) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "login.html";
+    throw new Error("Unauthorized");
+  }
+  return res.json();
+}
+
+function logout(){
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  window.location.href = "login.html";
+}
+
+function todayStr(){
+  return new Date().toISOString().slice(0, 10);
+}
+
+/* ---------- maintenance mode ---------- */
+async function loadMaintenance(){
+  try {
+    const data = await authedFetch('/api/owner/maintenance');
+    if (!data.success) return;
+    document.getElementById('maintToggle').checked = data.maintenanceMode;
+    document.getElementById('maintMessage').value = data.message;
+    document.getElementById('maintStatus').innerText = data.maintenanceMode ? 'ON — users are blocked' : 'OFF — app is live';
+  } catch(e){ /* redirect already handled */ }
+}
+
+document.getElementById('maintSaveBtn').addEventListener('click', async () => {
+  const maintenanceMode = document.getElementById('maintToggle').checked;
+  const message = document.getElementById('maintMessage').value;
+  const data = await authedFetch('/api/owner/maintenance', {
+    method: 'POST',
+    body: JSON.stringify({ maintenanceMode, message })
+  });
+  if (data.success) {
+    document.getElementById('maintStatus').innerText = data.maintenanceMode ? 'ON — users are blocked' : 'OFF — app is live';
+  }
+});
+
+/* ---------- published pages ---------- */
+async function loadPublishes(){
+  const listEl = document.getElementById('publishList');
+  try {
+    const data = await authedFetch('/api/owner/publishes');
+    if (!data.success) return;
+    if (!data.pages.length) {
+      listEl.className = 'empty';
+      listEl.innerText = 'No published pages yet';
+      return;
+    }
+    listEl.className = '';
+    listEl.innerHTML = data.pages.map(p => `
+      <div class="publish-row" id="pubrow-${p._id}">
+        <div class="publish-row-top">
+          <div class="publish-link">/p/${p.slug}</div>
+          <span class="tag ${p.disabled ? 'banned' : 'pro'}">${p.disabled ? 'MAINTENANCE' : 'LIVE'}</span>
+        </div>
+        <div class="publish-meta">${p.ownerEmail} · ${new Date(p.createdAt).toLocaleDateString()}</div>
+        <div class="actions">
+          <button class="btn" onclick="window.open('${p.url}','_blank')">View</button>
+          <button class="btn" onclick="togglePublish('${p._id}')">${p.disabled ? 'Restore' : 'Maintain'}</button>
+          <button class="btn danger" onclick="deletePublish('${p._id}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e){ /* redirect already handled */ }
+}
+
+async function togglePublish(id){
+  const data = await authedFetch(`/api/owner/publishes/${id}/toggle`, { method: 'POST' });
+  if (data.success) loadPublishes();
+}
+
+async function deletePublish(id){
+  if (!confirm('Delete this published page permanently?')) return;
+  const data = await authedFetch(`/api/owner/publishes/${id}`, { method: 'DELETE' });
+  if (data.success) loadPublishes();
+}
+
+/* ---------- analytics ---------- */
+let usageChartInstance = null;
+
+async function loadAnalytics(){
+  try {
+    const data = await authedFetch('/api/owner/analytics?days=14');
+    if (!data.success) return;
+
+    document.getElementById('statToday').innerText = data.totals.requestsToday;
+    const periodTotal = data.daily.reduce((sum, d) => sum + d.total, 0);
+    document.getElementById('statPeriod').innerText = periodTotal;
+    document.getElementById('analyticsSub').innerText = `${data.totals.totalUsers} users · ${data.totals.totalPro} pro · ${data.totals.totalBanned} banned`;
+
+    const labels = data.daily.map(d => d.date.slice(5)); // MM-DD
+    const values = data.daily.map(d => d.total);
+
+    const ctx = document.getElementById('usageChart').getContext('2d');
+    if (usageChartInstance) usageChartInstance.destroy();
+    usageChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          borderColor: '#fafafa',
+          backgroundColor: 'rgba(250,250,250,0.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointBackgroundColor: '#fafafa'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#888888', font: { size: 9 }, maxRotation: 0 } },
+          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#888888', font: { size: 9 }, precision: 0 } }
+        }
+      }
+    });
+
+    const list = document.getElementById('topUsersList');
+    if (data.topUsers.length === 0) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;">No usage data yet.</div>';
+    } else {
+      list.innerHTML = data.topUsers.map(u => `
+        <div class="top-user-row">
+          <span>${u.email}${u.isOwner ? ' 👑' : u.isPro ? ' ⭐' : ''}</span>
+          <span class="cnt">${u.total}</span>
+        </div>
+      `).join('');
+    }
+  } catch (e) { /* redirect already handled */ }
+}
+
+/* ---------- rendering ---------- */
+function renderUsers(users){
+  allUsers = users;
+  const list = document.getElementById("userList");
+  document.getElementById("statTotal").innerText = users.length;
+  document.getElementById("statPro").innerText = users.filter(u => u.isPro).length;
+  document.getElementById("statBanned").innerText = users.filter(u => u.isBanned).length;
+
+  if (users.length === 0) {
+    list.className = "empty";
+    list.innerText = "No users yet.";
+    updateBulkBar();
+    return;
+  }
+
+  list.className = "";
+  list.innerHTML = users.map(u => `
+    <div class="user-card ${selected.has(u._id) ? 'selected' : ''}" id="card-${u._id}">
+      <input type="checkbox" class="user-check" ${u.isOwner ? 'disabled title="Owner accounts can\'t be selected"' : ''}
+        ${selected.has(u._id) ? 'checked' : ''} onchange="toggleSelect('${u._id}', this.checked)">
+      <div class="user-card-body">
+        <div class="user-top">
+          <div class="user-email">${u.email}</div>
+        </div>
+        <div class="tags">
+          ${u.isOwner ? '<span class="tag owner">OWNER</span>' : ''}
+          <span class="tag ${u.isPro ? 'pro' : ''}">${u.isPro ? 'PRO' : 'FREE'}</span>
+          ${u.isBanned ? '<span class="tag banned">BANNED</span>' : ''}
+        </div>
+        ${u.isBanned && u.banReason ? `<div class="ban-reason">Reason: ${u.banReason}</div>` : ''}
+        <div class="usage-line">${u.requestDate === todayStr() ? u.requestCount : 0} / 20 requests today</div>
+        <div class="apikey-row">
+          ${u.apiKey
+            ? `<span class="apikey-text">${u.apiKey.slice(0, 14)}••••${u.apiKey.slice(-4)}</span>
+               <button class="mini-btn" onclick="copyKey('${u.apiKey}')">Copy</button>
+               <button class="mini-btn danger" onclick="revokeKey('${u._id}')">Revoke</button>`
+            : `<span class="apikey-text">No API key</span>
+               <button class="mini-btn" onclick="generateKey('${u._id}')">Generate</button>`
+          }
+        </div>
+        <div class="actions">
+          <button class="btn ${u.isPro ? '' : 'primary'}" onclick="togglePro('${u._id}', ${!u.isPro})">
+            ${u.isPro ? 'Remove Pro' : 'Make Pro'}
+          </button>
+          <button class="btn" onclick="resetUsage('${u._id}')">Reset usage</button>
+          ${u.isOwner ? '' : (
+            u.isBanned
+              ? `<button class="btn" onclick="unbanUser('${u._id}')">Unban</button>`
+              : `<button class="btn danger" onclick="confirmSingleBan('${u._id}', '${u.email.replace(/'/g, "\\'")}')">Ban</button>`
+          )}
+          ${u.isOwner ? '' : `<button class="btn danger" onclick="confirmSingleDelete('${u._id}', '${u.email.replace(/'/g, "\\'")}')">Delete</button>`}
+        </div>
+      </div>
+    </div>
+  `).join("");
+
+  updateBulkBar();
+}
+
+function toggleSelect(id, checked){
+  if (checked) selected.add(id); else selected.delete(id);
+  const card = document.getElementById(`card-${id}`);
+  if (card) card.classList.toggle('selected', checked);
+  updateBulkBar();
+}
+
+function updateBulkBar(){
+  const bar = document.getElementById('bulkBar');
+  document.getElementById('bulkCount').innerText = `${selected.size} selected`;
+  bar.classList.toggle('show', selected.size > 0);
+}
+
+document.getElementById('selectAllBtn').addEventListener('click', () => {
+  allUsers.filter(u => !u.isOwner).forEach(u => selected.add(u._id));
+  renderUsers(allUsers);
+});
+document.getElementById('clearSelBtn').addEventListener('click', () => {
+  selected.clear();
+  renderUsers(allUsers);
+});
+
+/* ---------- data actions ---------- */
+async function loadUsers(){
+  try {
+    const data = await authedFetch("/api/owner/users");
+    if (data.success) renderUsers(data.users);
+  } catch (e) { /* redirect already handled in authedFetch */ }
+}
+
+async function togglePro(id, newState){
+  await authedFetch(`/api/owner/users/${id}/pro`, {
+    method: "POST",
+    body: JSON.stringify({ isPro: newState })
+  });
+  loadUsers();
+}
+
+async function resetUsage(id){
+  await authedFetch(`/api/owner/users/${id}/reset-usage`, { method: "POST" });
+  loadUsers();
+}
+
+async function bulkPro(isPro){
+  if (selected.size === 0) return;
+  await authedFetch(`/api/owner/users/bulk-pro`, {
+    method: "POST",
+    body: JSON.stringify({ ids: Array.from(selected), isPro })
+  });
+  selected.clear();
+  loadUsers();
+}
+
+/* ---------- ban / unban flow ---------- */
+let pendingBan = null; // { type: 'single'|'bulk', id? }
+
+function confirmSingleBan(id, email){
+  pendingBan = { type: 'single', id };
+  document.getElementById('banTitle').innerText = `Ban ${email}?`;
+  document.getElementById('banReasonText').value = '';
+  openModal('banModal');
+}
+
+function openBulkBan(){
+  if (selected.size === 0) return;
+  pendingBan = { type: 'bulk' };
+  document.getElementById('banTitle').innerText = `Ban ${selected.size} account${selected.size > 1 ? 's' : ''}?`;
+  document.getElementById('banReasonText').value = '';
+  openModal('banModal');
+}
+
+document.getElementById('banConfirmBtn').addEventListener('click', async () => {
+  if (!pendingBan) return;
+  const reason = document.getElementById('banReasonText').value.trim();
+  closeModal('banModal');
+  if (pendingBan.type === 'single') {
+    await authedFetch(`/api/owner/users/${pendingBan.id}/ban`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+  } else {
+    await authedFetch(`/api/owner/users/bulk-ban`, {
+      method: 'POST',
+      body: JSON.stringify({ ids: Array.from(selected), reason })
+    });
+    selected.clear();
+  }
+  pendingBan = null;
+  loadUsers();
+});
+
+async function unbanUser(id){
+  await authedFetch(`/api/owner/users/${id}/unban`, { method: 'POST' });
+  loadUsers();
+}
+
+async function bulkUnban(){
+  if (selected.size === 0) return;
+  await authedFetch(`/api/owner/users/bulk-unban`, {
+    method: 'POST',
+    body: JSON.stringify({ ids: Array.from(selected) })
+  });
+  selected.clear();
+  loadUsers();
+}
+
+/* ---------- per-user API key ---------- */
+async function generateKey(id){
+  const data = await authedFetch(`/api/owner/users/${id}/generate-key`, { method: 'POST' });
+  if (data.success) {
+    await navigator.clipboard.writeText(data.apiKey).catch(() => {});
+    alert(`New key generated and copied:\n\n${data.apiKey}\n\nThis is shown once — save it now.`);
+  }
+  loadUsers();
+}
+
+async function revokeKey(id){
+  await authedFetch(`/api/owner/users/${id}/revoke-key`, { method: 'POST' });
+  loadUsers();
+}
+
+function copyKey(key){
+  navigator.clipboard.writeText(key).catch(() => {});
+}
+
+/* ---------- delete flow (confirm modal, then delete) ---------- */
+let pendingDelete = null; // { type: 'single'|'bulk', id?, email? }
+
+function confirmSingleDelete(id, email){
+  pendingDelete = { type: 'single', id };
+  document.getElementById('deleteTitle').innerText = 'Delete this account?';
+  document.getElementById('deleteBody').innerText = `${email} and all of their chat history will be permanently deleted. This can't be undone.`;
+  openModal('deleteModal');
+}
+
+function confirmBulkDelete(){
+  if (selected.size === 0) return;
+  pendingDelete = { type: 'bulk' };
+  document.getElementById('deleteTitle').innerText = `Delete ${selected.size} account${selected.size > 1 ? 's' : ''}?`;
+  document.getElementById('deleteBody').innerText = `These accounts and all of their chat history will be permanently deleted. This can't be undone.`;
+  openModal('deleteModal');
+}
+
+document.getElementById('deleteConfirmBtn').addEventListener('click', async () => {
+  if (!pendingDelete) return;
+  closeModal('deleteModal');
+  if (pendingDelete.type === 'single') {
+    await authedFetch(`/api/owner/users/${pendingDelete.id}`, { method: 'DELETE' });
+  } else {
+    await authedFetch(`/api/owner/users/bulk-delete`, {
+      method: 'POST',
+      body: JSON.stringify({ ids: Array.from(selected) })
+    });
+    selected.clear();
+  }
+  pendingDelete = null;
+  loadUsers();
+});
+
+/* ---------- notify flow ---------- */
+function openNotify(){
+  if (selected.size === 0) return;
+  document.getElementById('notifyTitle').innerText = `Message ${selected.size} user${selected.size > 1 ? 's' : ''}`;
+  document.getElementById('notifyText').value = '';
+  openModal('notifyModal');
+}
+
+async function sendNotify(){
+  const message = document.getElementById('notifyText').value.trim();
+  if (!message) return;
+  closeModal('notifyModal');
+  await authedFetch(`/api/owner/notify`, {
+    method: 'POST',
+    body: JSON.stringify({ ids: Array.from(selected), message })
+  });
+  selected.clear();
+  loadUsers();
+}
+
+/* ---------- modal helpers ---------- */
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+// Guard: only render if the logged-in user is actually the owner
+(async function init(){
+  const data = await authedFetch("/api/auth/me");
+  if (!data.success || !data.user.isOwner) {
+    window.location.href = "login.html";
+    return;
+  }
+  document.getElementById("ownerEmail").innerText = data.user.email;
+  loadUsers();
+  loadMaintenance();
+  loadAnalytics();
+  loadPublishes();
+})();
+</script>
+</body>
+</html>
