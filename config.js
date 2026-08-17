@@ -5,7 +5,7 @@ const config = {
   ownerEmail: (process.env.OWNER_EMAIL || 'sithijaanuhas87@gmail.com').toLowerCase(),
 
   // Google sign-in / Gmail OTP
-  googleClientId: process.env.GOOGLE_CLIENT_ID || '33474917838-m4jj35a1ff7tqrqrka2no12k9ltb6m36.apps.googleusercontent.com',
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '456111260958-t34o7cskeirlo5tt5d3im2h5val7mg92.apps.googleusercontent.com',
   gmailClientId: process.env.GMAIL_CLIENT_ID || '725412746068-nf16uscf6mrqi1d70r0mqumc8gk916u6.apps.googleusercontent.com',
   gmailClientSecret: process.env.GMAIL_CLIENT_SECRET || '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',
   gmailRefreshToken: process.env.GMAIL_REFRESH_TOKEN || '1//09fHzGikS5zR_CgYIARAAGAkSNwF-L9IreRgwmKegzpWDHyMKy1tdkT9zj78LCnQh5Ti7j2Wo2xUunElkP9R1ISSCx2GpUZng2dM',
