@@ -36,12 +36,6 @@ main{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;justi
   letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;}
 h1{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;letter-spacing:-0.9px;line-height:1.15;margin-bottom:28px;}
 
-.tabs{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:6px;
-  padding:4px;margin-bottom:20px;}
-.tab{flex:1;text-align:center;padding:9px 0;border-radius:999px;font-size:0.84rem;font-weight:600;
-  color:var(--muted);cursor:pointer;transition:all 0.15s ease;user-select:none;}
-.tab.active{background:var(--text);color:#000;}
-
 .field{margin-bottom:14px;}
 .field label{display:block;font-size:0.76rem;color:var(--muted);margin-bottom:6px;}
 .field input{width:100%;padding:13px 14px;background:var(--surface-2);border:1px solid var(--border-strong);
@@ -79,223 +73,97 @@ h1{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;lette
   </nav>
 
   <main>
-    <div class="eyebrow" id="modeEyebrow">Sign in</div>
-    <h1 id="modeTitle">Welcome back</h1>
-
-    <div class="tabs">
-      <div class="tab active" id="tabLogin" onclick="setMode('login')">Login</div>
-      <div class="tab" id="tabRegister" onclick="setMode('register')">Create account</div>
-    </div>
+    <div class="eyebrow">SIGN IN</div>
+    <h1>Welcome back</h1>
 
     <div class="error-box" id="errorBox"></div>
 
-    <form id="authForm">
-      <div class="field">
-        <label for="email">Email</label>
-        <input type="email" id="email" placeholder="you@gmail.com" required autocomplete="email">
-      </div>
-      <div class="field">
-        <label for="password">Password</label>
-        <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password" minlength="6">
-      </div>
-      <button type="submit" class="submit-btn" id="submitBtn">Log in</button>
-    </form>
-
-    <form id="otpForm" style="display:none;">
-      <div class="field">
-        <label for="otpCode">6-digit code sent to <span id="otpEmailLabel"></span></label>
-        <input type="text" id="otpCode" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" required autocomplete="one-time-code">
-      </div>
-      <button type="submit" class="submit-btn" id="otpSubmitBtn">Verify</button>
-      <div class="hint" id="resendHint" style="margin-top:12px;cursor:pointer;text-decoration:underline;" onclick="resendOtp()">Resend code</div>
-    </form>
-
-    <div class="hint" id="modeHint">Gmail ekakin account ekak hadaganna, thanks witharai.</div>
-
-    <div class="divider" style="display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--muted-2);font-size:0.72rem;">
-      <div style="flex:1;height:1px;background:var(--border)"></div>OR<div style="flex:1;height:1px;background:var(--border)"></div>
-    </div>
+    <div class="hint" style="margin-top:0;margin-bottom:18px;">Google account ekakin sign in wenna.</div>
 
     <div id="googleBtnContainer" style="display:flex;justify-content:center;"></div>
 
     <div class="back-link" onclick="window.location.href='/welcome.html'">← Back</div>
+
   </main>
 </div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-let mode = 'login';
-
-// Sets up the "Sign in with Google" button once the client ID is fetched
-// and Google's script has loaded.
+// Google-only authentication. Email/password and OTP flows are intentionally absent.
 async function initGoogleSignIn() {
   try {
     const res = await fetch('/api/auth/google-client-id');
     const { clientId } = await res.json();
-    if (!clientId || clientId.startsWith('PASTE_YOUR_')) return; // not configured yet
+    if (!clientId || clientId.startsWith('PASTE_YOUR_')) {
+      showError('Google Sign-In is not configured on the server.');
+      return;
+    }
 
     function tryRender() {
       if (!window.google || !google.accounts || !google.accounts.id) {
         return setTimeout(tryRender, 100);
       }
+
       google.accounts.id.initialize({
         client_id: clientId,
         callback: handleGoogleCredential
       });
+
       google.accounts.id.renderButton(document.getElementById('googleBtnContainer'), {
-        theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 280
+        theme: 'filled_black',
+        size: 'large',
+        shape: 'pill',
+        text: 'continue_with',
+        width: 280
       });
     }
+
     tryRender();
   } catch (err) {
     console.error('Google Sign-In failed to load', err);
+    showError('Google Sign-In failed to load.');
   }
 }
 
 async function handleGoogleCredential(response) {
-  document.getElementById('errorBox').classList.remove('show');
+  const errorBox = document.getElementById('errorBox');
+  errorBox.classList.remove('show');
+
   try {
     const res = await fetch('/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential: response.credential })
     });
+
     const data = await res.json();
     if (!data.success) {
       showError(data.error || 'Google sign-in failed');
       return;
     }
+
     localStorage.setItem('token', data.token);
-    window.location.href = data.user && data.user.isOwner ? '/owner-dashboard.html' : '/index.html';
+    window.location.href = data.user && data.user.isOwner
+      ? '/owner-dashboard.html'
+      : '/index.html';
   } catch (err) {
     showError('Network error, try again');
   }
 }
 
-initGoogleSignIn();
-
-function setMode(next){
-  mode = next;
-  document.getElementById('errorBox').classList.remove('show');
-  document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
-  document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
-  document.getElementById('modeEyebrow').textContent = mode === 'login' ? 'Sign in' : 'Create account';
-  document.getElementById('modeTitle').textContent = mode === 'login' ? 'Welcome back' : 'Get started';
-  document.getElementById('submitBtn').textContent = mode === 'login' ? 'Log in' : 'Create account';
-  document.getElementById('password').setAttribute('autocomplete', mode === 'login' ? 'current-password' : 'new-password');
-  document.getElementById('modeHint').textContent = mode === 'login'
-    ? "Account ekak nathnam, uda tab eken 'Create account' click karanna."
-    : 'Password ekak wenam akuru 6ka wenna oni.';
-}
-
-function showError(msg){
+function showError(msg) {
   const box = document.getElementById('errorBox');
   box.textContent = msg;
   box.classList.add('show');
 }
 
-// If already logged in, skip straight past this page
+// If already logged in, skip straight past this page.
 const existingToken = localStorage.getItem('token');
 if (existingToken) {
   window.location.href = '/index.html';
 }
 
-let pendingOtpEmail = null;
-
-function showOtpStep(email) {
-  pendingOtpEmail = email;
-  document.getElementById('authForm').style.display = 'none';
-  document.getElementById('otpForm').style.display = 'block';
-  document.getElementById('otpEmailLabel').textContent = email;
-  document.getElementById('modeEyebrow').textContent = 'Almost there';
-  document.getElementById('modeTitle').textContent = 'Check your inbox';
-  document.getElementById('modeHint').textContent = 'Code eka 10 minutes witharai valid.';
-  document.getElementById('otpCode').focus();
-}
-
-async function resendOtp() {
-  if (!pendingOtpEmail) return;
-  const hint = document.getElementById('resendHint');
-  hint.textContent = 'Sending...';
-  try {
-    const res = await fetch('/api/auth/resend-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: pendingOtpEmail })
-    });
-    const data = await res.json();
-    hint.textContent = data.success ? 'Code resent. Check your inbox.' : (data.error || 'Failed to resend');
-  } catch (err) {
-    hint.textContent = 'Network error, try again';
-  }
-}
-
-document.getElementById('otpForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  document.getElementById('errorBox').classList.remove('show');
-  const otp = document.getElementById('otpCode').value.trim();
-  const btn = document.getElementById('otpSubmitBtn');
-  btn.disabled = true;
-  try {
-    const res = await fetch('/api/auth/verify-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: pendingOtpEmail, otp })
-    });
-    const data = await res.json();
-    if (!data.success) {
-      showError(data.error || 'Verification failed');
-      return;
-    }
-    localStorage.setItem('token', data.token);
-    window.location.href = data.user && data.user.isOwner ? '/owner-dashboard.html' : '/index.html';
-  } catch (err) {
-    showError('Network error, try again');
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-document.getElementById('authForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  document.getElementById('errorBox').classList.remove('show');
-
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  const submitBtn = document.getElementById('submitBtn');
-  submitBtn.disabled = true;
-
-  try {
-    const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-
-    if (!data.success) {
-      if (data.otpRequired) {
-        showOtpStep(data.email || email);
-        return;
-      }
-      showError(data.error || 'Something went wrong');
-      return;
-    }
-
-    if (data.otpRequired) {
-      showOtpStep(data.email || email);
-      return;
-    }
-
-    localStorage.setItem('token', data.token);
-    window.location.href = data.user && data.user.isOwner ? '/owner-dashboard.html' : '/index.html';
-  } catch (err) {
-    showError('Network error, try again');
-  } finally {
-    submitBtn.disabled = false;
-  }
-});
+initGoogleSignIn();
 </script>
 
 </body>
