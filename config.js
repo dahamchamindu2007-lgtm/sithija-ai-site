@@ -6,8 +6,8 @@ const config = {
 
   // Google sign-in / Gmail OTP
   googleClientId: process.env.GOOGLE_CLIENT_ID || '456111260958-t34o7cskeirlo5tt5d3im2h5val7mg92.apps.googleusercontent.com',
-  gmailClientId: process.env.GMAIL_CLIENT_ID || '725412746068-nf16uscf6mrqi1d70r0mqumc8gk916u6.apps.googleusercontent.com',
-  gmailClientSecret: process.env.GMAIL_CLIENT_SECRET || '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',
+  gmailClientId: process.env.GMAIL_CLIENT_ID || '456111260958-t34o7cskeirlo5tt5d3im2h5val7mg92.apps.googleusercontent.com',
+  gmailClientSecret: process.env.GMAIL_CLIENT_SECRET || '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',
   gmailRefreshToken: process.env.GMAIL_REFRESH_TOKEN || '1//09fHzGikS5zR_CgYIARAAGAkSNwF-L9IreRgwmKegzpWDHyMKy1tdkT9zj78LCnQh5Ti7j2Wo2xUunElkP9R1ISSCx2GpUZng2dM',
   gmailSenderEmail: process.env.GMAIL_SENDER_EMAIL || 'sithijaanuhas87@gmail.com',
   gmailSenderName: process.env.GMAIL_SENDER_NAME || 'Mr Sithija AI',
