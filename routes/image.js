@@ -21,7 +21,7 @@ async function toEnglishImagePrompt(rawPrompt) {
       `Translate/rewrite the following into a short, clear English text-to-image ` +
       `prompt describing the scene. Output ONLY the prompt text itself — no quotes, ` +
       `no explanation, no extra words.\n\nInput: ${rawPrompt}\nEnglish image prompt:`;
-    const url = `${config.hashuApiBase}/api/ai/freechat?apiKey=${encodeURIComponent(config.hashuApiKey)}&text=${encodeURIComponent(instruction)}`;
+    const url = `${config.sasaApiBase}/api/ai/gemini?apikey=${encodeURIComponent(config.sasaApiKey)}&q=${encodeURIComponent(instruction)}&mode=value`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     let upstream;
@@ -32,7 +32,7 @@ async function toEnglishImagePrompt(rawPrompt) {
     }
     if (!upstream.ok) return rawPrompt;
     const data = await upstream.json();
-    const translated = (data.results && data.results.reply) || data.result || data.reply;
+    const translated = data.result || (data.results && data.results.reply) || data.reply;
     return (translated && translated.trim()) ? translated.trim() : rawPrompt;
   } catch (err) {
     console.error('Prompt translation failed, using original:', err.name, err.message);
@@ -62,7 +62,7 @@ router.post('/generate', requireAuth, (req, res, next) => {
     if (!prompt || !prompt.trim()) {
       return res.status(400).json({ success: false, error: 'A prompt is required' });
     }
-    if (!config.hashuApiKey) {
+    if (!config.sasaApiKey) {
       return res.status(500).json({ success: false, error: 'AI API key not configured on server' });
     }
 
