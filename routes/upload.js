@@ -5,6 +5,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const XLSX = require('xlsx');
 const AdmZip = require('adm-zip');
+const { createExtractorFromData } = require('node-unrar-js');
 const { createWorker } = require('tesseract.js');
 const { requireAuth } = require('../middleware/auth');
 
@@ -26,6 +27,12 @@ function detectKind(mimetype, filename) {
     mimetype === 'application/octet-stream' && ext === '.zip' ||
     ext === '.zip'
   ) return 'zip';
+  if (
+    mimetype === 'application/vnd.rar' ||
+    mimetype === 'application/x-rar-compressed' ||
+    mimetype === 'application/octet-stream' && ext === '.rar' ||
+    ext === '.rar'
+  ) return 'rar';
   if (mimetype === 'application/pdf' || ext === '.pdf') return 'pdf';
   if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || ext === '.docx') return 'docx';
   if (
@@ -36,7 +43,11 @@ function detectKind(mimetype, filename) {
   if (mimetype === 'text/csv' || ext === '.csv') return 'csv';
   if ((mimetype && mimetype.startsWith('image/')) || IMAGE_EXTS.has(ext)) return 'image';
   if (mimetype === 'text/plain' || ext === '.txt') return 'txt';
-  return null;
+  // Anything else still gets accepted — handled by the 'other' branch below,
+  // which sniffs the bytes and either reads it as plain text or reports it
+  // as a binary file we can't extract text from. This is what lets literally
+  // any file type be uploaded instead of being rejected up front.
+  return 'other';
 }
 
 const upload = multer({
@@ -48,10 +59,10 @@ const upload = multer({
   // them, which the frontend can only report as a generic "Upload failed".
   // Staying under it means OUR error message is what the user sees instead.
   limits: { fileSize: 4 * 1024 * 1024 }, // 4MB
-  fileFilter: (req, file, cb) => {
-    if (detectKind(file.mimetype, file.originalname)) return cb(null, true);
-    cb(new Error('Only PDF, DOCX, TXT, CSV, XLSX, ZIP, and image (PNG/JPG/WEBP) files are supported'));
-  }
+  // No fileFilter — every file type is accepted now. detectKind() always
+  // returns something ('other' as the catch-all), so nothing gets rejected
+  // here; unsupported/binary content is handled gracefully inside the
+  // 'other' case of the switch below instead of failing the upload outright.
 });
 
 // Cap how much extracted text gets sent to the AI per upload — keeps the
@@ -121,6 +132,77 @@ function extractZipText(buffer) {
     : manifest;
 }
 
+// Reads a .rar archive: lists its contents (name + size) and previews a
+// handful of small text-like files inside, same approach as extractZipText.
+// node-unrar-js is a WASM port of unrar, so this needs no native binary —
+// important since Railway/Vercel builds shouldn't depend on system packages.
+async function extractRarText(buffer) {
+  const extractor = await createExtractorFromData({ data: new Uint8Array(buffer).buffer });
+
+  const listResult = extractor.getFileList();
+  const allHeaders = [...listResult.fileHeaders].filter(h => !h.flags.directory);
+
+  if (allHeaders.length === 0) return '(empty archive — no files inside)';
+
+  const listed = allHeaders.slice(0, ZIP_MAX_ENTRIES_LISTED);
+  const manifestLines = listed.map(h => `${h.name}  (${(h.unpSize / 1024).toFixed(1)} KB)`);
+  let manifest = `Archive contains ${allHeaders.length} file(s):\n` + manifestLines.join('\n');
+  if (allHeaders.length > listed.length) {
+    manifest += `\n… and ${allHeaders.length - listed.length} more file(s) not listed`;
+  }
+
+  const previewCandidates = allHeaders
+    .filter(h => ZIP_TEXT_EXTS.has(path.extname(h.name).toLowerCase()) && h.unpSize > 0 && h.unpSize < 200 * 1024)
+    .slice(0, ZIP_MAX_FILES_PREVIEWED)
+    .map(h => h.name);
+
+  const previews = [];
+  if (previewCandidates.length) {
+    // extract() needs a fresh extractor call with the target file list;
+    // it returns file bodies alongside headers.
+    const extracted = extractor.extract({ files: previewCandidates });
+    for (const file of extracted.files) {
+      try {
+        if (!file.extraction) continue;
+        let content = Buffer.from(file.extraction).toString('utf-8');
+        const truncated = content.length > ZIP_PREVIEW_CHARS_PER_FILE;
+        if (truncated) content = content.slice(0, ZIP_PREVIEW_CHARS_PER_FILE);
+        previews.push(`--- ${file.fileHeader.name}${truncated ? ' (truncated)' : ''} ---\n${content}`);
+      } catch {
+        // Skip files that fail to decode as text.
+      }
+    }
+  }
+
+  return previews.length
+    ? `${manifest}\n\n${previews.join('\n\n')}`
+    : manifest;
+}
+
+// Fallback for any file type we don't specifically parse. Sniffs the first
+// chunk of bytes: if it looks like plain text (no null bytes, mostly
+// printable), read it as text like a .txt file. Otherwise report it as a
+// binary file with just its metadata — we can't usefully extract "text"
+// from e.g. an .exe or .mp3, but we still accept the upload instead of
+// rejecting it outright.
+function looksLikeText(buffer) {
+  const sample = buffer.subarray(0, 8000);
+  if (sample.includes(0)) return false; // null byte -> almost certainly binary
+  let printable = 0;
+  for (const byte of sample) {
+    if (byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte < 127) || byte >= 128) printable++;
+  }
+  return sample.length === 0 || printable / sample.length > 0.85;
+}
+
+function extractOtherFileText(buffer, originalname, mimetype) {
+  if (looksLikeText(buffer)) {
+    return buffer.toString('utf-8');
+  }
+  const sizeKb = (buffer.length / 1024).toFixed(1);
+  return `(binary file — no extractable text)\nFilename: ${originalname}\nType: ${mimetype || 'unknown'}\nSize: ${sizeKb} KB`;
+}
+
 // OCRs a photo/screenshot of text using Tesseract. Slower than the other
 // extractors (a few seconds), so this is only invoked for image uploads.
 async function extractImageText(buffer) {
@@ -183,6 +265,9 @@ router.post('/document', requireAuth, (req, res) => {
         case 'zip':
           text = extractZipText(buffer);
           break;
+        case 'rar':
+          text = await extractRarText(buffer);
+          break;
         case 'pdf': {
           const data = await pdfParse(buffer);
           text = data.text;
@@ -208,8 +293,11 @@ router.post('/document', requireAuth, (req, res) => {
           text = await withTimeout(extractImageText(buffer), 8000, 'Image OCR timed out');
           break;
         case 'txt':
-        default:
           text = buffer.toString('utf-8');
+          break;
+        case 'other':
+        default:
+          text = extractOtherFileText(buffer, originalname, mimetype);
           break;
       }
 
@@ -222,7 +310,9 @@ router.post('/document', requireAuth, (req, res) => {
             ? "That spreadsheet looks empty — no data found in any sheet."
             : kind === 'zip'
               ? "That zip archive looks empty."
-              : "Couldn't find any text in that file — it may be empty or a scanned/image-only document.";
+              : kind === 'rar'
+                ? "That rar archive looks empty."
+                : "Couldn't find any text in that file — it may be empty or a scanned/image-only document.";
         return res.status(422).json({ success: false, error: emptyMsg });
       }
 
@@ -238,7 +328,9 @@ router.post('/document', requireAuth, (req, res) => {
           ? "Couldn't read that spreadsheet. Make sure it's a valid, non-corrupted XLSX/XLS file."
           : kind === 'zip'
             ? "Couldn't read that zip file. Make sure it's a valid, non-corrupted archive."
-            : "Couldn't read that file. Make sure it's a valid PDF, DOCX, TXT, CSV, XLSX, or ZIP.";
+            : kind === 'rar'
+              ? "Couldn't read that rar file. Make sure it's a valid, non-corrupted archive."
+              : "Couldn't read that file.";
       res.status(422).json({ success: false, error: friendly });
     }
   });
