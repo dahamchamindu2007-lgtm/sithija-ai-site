@@ -94,7 +94,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       }
     }
 
-    if (!config.sasaApiKey) {
+    if (!config.hashuApiKey) {
       return res.status(500).json({ success: false, error: 'AI API key not configured on server' });
     }
 
@@ -142,11 +142,8 @@ router.post('/', requireAuth, async (req, res, next) => {
       promptText = `${PERSONA}\n\n${fileBlock}User: ${text}\nAssistant:`;
     }
 
-    // Sasa Dev "Gemini" API — GET /api/ai/gemini?apikey=...&q=...&mode=value
-    // Response shape: { status: true, result: "reply text", ... }. There's
-    // no separate "model" selector on this API, so the `model` field from
-    // the request body (if the frontend still sends one) is simply ignored.
-    const url = `${config.sasaApiBase}/api/ai/gemini?apikey=${encodeURIComponent(config.sasaApiKey)}&q=${encodeURIComponent(promptText)}&mode=value`;
+    let url = `${config.hashuApiBase}/api/ai/freechat?apiKey=${encodeURIComponent(config.hashuApiKey)}&text=${encodeURIComponent(promptText)}`;
+    if (model) url += `&model=${encodeURIComponent(model)}`;
 
     // Pro/owner requests get priority in the queue, so if several people hit
     // the AI at the same moment, Pro replies come back first. Free users
@@ -167,14 +164,11 @@ router.post('/', requireAuth, async (req, res, next) => {
     }
     const data = await upstream.json();
 
-    // Sasa Dev's API signals failure with `status: false` rather than the
-    // old `success` field. Some error responses may not include a message
-    // field at all, so fall back to a generic one.
-    if (!data.status) {
-      return res.status(502).json({ success: false, error: data.message || data.error || 'AI service returned an error' });
+    if (!data.success) {
+      return res.status(502).json({ success: false, error: data.message || 'AI service returned an error' });
     }
 
-    let reply = data.result || (data.results && data.results.reply) || data.reply;
+    let reply = (data.results && data.results.reply) || data.result || data.reply;
     if (!reply) {
       return res.status(502).json({ success: false, error: 'AI service returned an empty response' });
     }
@@ -214,7 +208,7 @@ router.post('/', requireAuth, async (req, res, next) => {
     res.json({
       success: true,
       reply,
-      model: data.model,
+      model: data.results && data.results.model,
       tier,
       remaining: req.rateLimit.remaining,
       conversationId: conversation ? conversation._id : undefined,
