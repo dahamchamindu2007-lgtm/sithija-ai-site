@@ -32,7 +32,11 @@ async function toEnglishImagePrompt(rawPrompt) {
     }
     if (!upstream.ok) return rawPrompt;
     const data = await upstream.json();
-    const translated = data.status && data.response;
+    if (!data.status) {
+      console.error('Chama API error during prompt translation:', JSON.stringify(data));
+      return rawPrompt;
+    }
+    const translated = data.response;
     return (translated && translated.trim()) ? translated.trim() : rawPrompt;
   } catch (err) {
     console.error('Prompt translation failed, using original:', err.name, err.message);
