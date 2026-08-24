@@ -118,7 +118,13 @@ router.post('/', requireAuth, async (req, res, next) => {
       `number, don't just output the bare digits — reply with a short friendly sentence ` +
       `and a clickable WhatsApp link in this exact format: https://wa.me/94742838813 ` +
       `(e.g. "You can reach Sithija ayya on WhatsApp here: https://wa.me/94742838813"). ` +
-      `Otherwise answer normally.`;
+      `Otherwise answer normally. ` +
+      `You have no knowledge of this app's actual login/account state — the person you're ` +
+      `talking to is already authenticated by the time any message reaches you, so never ` +
+      `claim they need to log in, sign up, create an account, or upgrade to use any feature ` +
+      `(including image generation/editing) — that is never true here and you have no way ` +
+      `to know otherwise. You also cannot generate or edit images yourself in this reply — ` +
+      `if asked for one, just briefly say you'll create it, without any login/account caveat.`;
 
     // The upstream Chama chatgpt endpoint is stateless (no conversation
     // memory, no model selection) — it has no idea what was said earlier in
