@@ -14,11 +14,13 @@ const config = {
   gmailSetupKey: process.env.GMAIL_SETUP_KEY || 'change-this-setup-key-before-deploying',
 
   // REQUIRED for AI features
-   hashuApiKey: process.env.HASHU_API_KEY || 'hashu_5993b3827730e8d9730f21884081d7cb',
+   hashuApiKey: process.env.HASHU_API_KEY || '',
   hashuApiBase: process.env.HASHU_API_BASE || 'https://hashu-apis-production.up.railway.app',
   // Railway provides PORT automatically
- sasaApiKey: process.env.SASA_API_KEY || 'Sasa_Dev_Api_4eed65c016af3ca6b0d0ad2ef564246543c45b34',
-  sasaApiBase: process.env.SASA_API_BASE || 'https://api.sasatech.online',
+// REQUIRED for AI text chat (chat.js) — Chama Movie API's ChatGPT proxy
+  chamaApiKey: process.env.CHAMA_API_KEY || 'chama_api_90569a61c96bdb95a2f1a71d16f6e95e',
+  chamaApiBase: process.env.CHAMA_API_BASE || 'https://chama-movie-api.koyeb.app',
+
   
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'production'
