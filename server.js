@@ -109,7 +109,7 @@ app.use('/api', async (req, res, next) => {
 });
 
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/gmail-setup', require('./routes/gmailSetup')); // one-time OTP-email setup helper — safe to delete after use
+app.use('/api/gmail-setup', require('./routes/gmailSetup')); // one-time Gmail sender setup helper
 app.use('/api/owner', require('./routes/owner'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/upload', require('./routes/upload'));
@@ -142,7 +142,7 @@ app.get('/p/:slug', async (req, res) => {
 const requiredConfig = [
   ['MONGODB_URI', config.mongodbUri],
   ['JWT_SECRET', config.jwtSecret],
-  ['HASHU_API_KEY', config.hashuApiKey],
+  ['CHAMA_API_KEY', config.chamaApiKey],
   ['OWNER_EMAIL', config.ownerEmail]
 ].filter(([, value]) => !value || !String(value).trim());
 
