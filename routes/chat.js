@@ -27,7 +27,7 @@ router.post('/', requireAuth, async (req, res, next) => {
   next();
 }, checkRateLimit, async (req, res) => {
   try {
-    const { text, model, conversationId } = req.body;
+    const { text, conversationId } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ success: false, error: 'Message text is required' });
     }
@@ -75,9 +75,9 @@ router.post('/', requireAuth, async (req, res, next) => {
       fileNote = `📎 ${fname}\n`;
     }
 
-    // Tier badge (sithi-lite/sithi-normal/sithi-pro) — cosmetic only, does
-    // NOT change which upstream model actually answers (that's still the
-    // `model` field above, untouched). sithi-pro is the one gated perk:
+    // Tier badge (sithi-lite/sithi-normal/sithi-pro) — purely cosmetic,
+    // doesn't change which upstream model answers (Chama's chatgpt endpoint
+    // has no model-selection param). sithi-pro is the one gated perk:
     // only Pro/owner accounts may select it, enforced here as well as in
     // the UI so it can't be unlocked by just editing the request.
     const VALID_TIERS = ['sithi-lite', 'sithi-normal', 'sithi-pro'];
@@ -94,7 +94,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       }
     }
 
-    if (!config.hashuApiKey) {
+    if (!config.chamaApiKey) {
       return res.status(500).json({ success: false, error: 'AI API key not configured on server' });
     }
 
@@ -120,11 +120,12 @@ router.post('/', requireAuth, async (req, res, next) => {
       `(e.g. "You can reach Sithija ayya on WhatsApp here: https://wa.me/94742838813"). ` +
       `Otherwise answer normally.`;
 
-    // The upstream /freechat endpoint is stateless — it has no idea what was
-    // said earlier in this conversation. So we build a short transcript of
-    // the last few turns and prepend it to the new message as context. This
-    // is what lets the AI "remember" things like "the 3rd one" referring to
-    // something mentioned a few messages back.
+    // The upstream Chama chatgpt endpoint is stateless (no conversation
+    // memory, no model selection) — it has no idea what was said earlier in
+    // this conversation. So we build a short transcript of the last few
+    // turns and prepend it to the new message as context. This is what lets
+    // the AI "remember" things like "the 3rd one" referring to something
+    // mentioned a few messages back.
     let promptText;
     if (conversation && conversation.messages.length > 0) {
       const HISTORY_TURNS = 10; // last N messages (user+ai combined)
@@ -142,8 +143,11 @@ router.post('/', requireAuth, async (req, res, next) => {
       promptText = `${PERSONA}\n\n${fileBlock}User: ${text}\nAssistant:`;
     }
 
-    let url = `${config.hashuApiBase}/api/ai/freechat?apiKey=${encodeURIComponent(config.hashuApiKey)}&text=${encodeURIComponent(promptText)}`;
-    if (model) url += `&model=${encodeURIComponent(model)}`;
+    // Chama's chatgpt endpoint has no model-selection param — the `model`
+    // field from the request body is kept only as the cosmetic tier label
+    // returned to the frontend below, it no longer changes which upstream
+    // model actually answers.
+    const url = `${config.chamaApiBase}/api/v1/media/ai/chatgpt?q=${encodeURIComponent(promptText)}&api_key=${encodeURIComponent(config.chamaApiKey)}`;
 
     // Pro/owner requests get priority in the queue, so if several people hit
     // the AI at the same moment, Pro replies come back first. Free users
@@ -164,11 +168,12 @@ router.post('/', requireAuth, async (req, res, next) => {
     }
     const data = await upstream.json();
 
-    if (!data.success) {
+    // Chama's response shape: { status: true, response: "...", owner: "...", thanks: "..." }
+    if (!data.status) {
       return res.status(502).json({ success: false, error: data.message || 'AI service returned an error' });
     }
 
-    let reply = (data.results && data.results.reply) || data.result || data.reply;
+    let reply = data.response;
     if (!reply) {
       return res.status(502).json({ success: false, error: 'AI service returned an empty response' });
     }
@@ -208,7 +213,6 @@ router.post('/', requireAuth, async (req, res, next) => {
     res.json({
       success: true,
       reply,
-      model: data.results && data.results.model,
       tier,
       remaining: req.rateLimit.remaining,
       conversationId: conversation ? conversation._id : undefined,
