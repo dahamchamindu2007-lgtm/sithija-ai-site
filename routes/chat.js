@@ -168,9 +168,20 @@ router.post('/', requireAuth, async (req, res, next) => {
     }
     const data = await upstream.json();
 
-    // Chama's response shape: { status: true, response: "...", owner: "...", thanks: "..." }
+    // Chama's response shape on success: { status: true, response: "...", owner, thanks }
+    // On failure it's { status: false, detail: "..." } — e.g. a quota/coins
+    // exhausted message. Log the raw body so the real reason shows up in
+    // server logs even when we show the user a shorter message.
     if (!data.status) {
-      return res.status(502).json({ success: false, error: data.message || 'AI service returned an error' });
+      console.error('Chama API returned an error:', JSON.stringify(data));
+      const upstreamReason = data.detail || data.message || data.error || '';
+      const isQuota = /quota|coins?\s*exhaust|upgrade\s+your\s+plan/i.test(upstreamReason);
+      return res.status(502).json({
+        success: false,
+        error: isQuota
+          ? 'AI service is out of quota for this API key. Set a fresh CHAMA_API_KEY (see .env.example) or top up on the Chama API Dashboard.'
+          : (upstreamReason || 'AI service returned an error')
+      });
     }
 
     let reply = data.response;
