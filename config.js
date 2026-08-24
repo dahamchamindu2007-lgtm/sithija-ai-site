@@ -13,17 +13,19 @@ const config = {
   gmailSenderName: process.env.GMAIL_SENDER_NAME || 'Mr Sithija AI',
   gmailSetupKey: process.env.GMAIL_SETUP_KEY || 'change-this-setup-key-before-deploying',
 
-  // REQUIRED for AI features
-   hashuApiKey: process.env.HASHU_API_KEY || '',
-  hashuApiBase: process.env.HASHU_API_BASE || 'https://hashu-apis-production.up.railway.app',
-  // Railway provides PORT automatically
 // REQUIRED for AI text chat (chat.js) — Chama Movie API's ChatGPT proxy
   chamaApiKey: process.env.CHAMA_API_KEY || 'chama_api_90569a61c96bdb95a2f1a71d16f6e95e',
   chamaApiBase: process.env.CHAMA_API_BASE || 'https://chama-movie-api.koyeb.app',
-
-  
+ 
+  // REQUIRED for AI image generation (image.js) — no replacement provided
+  // for this endpoint, so it still runs on the original Hashu API.
+  hashuApiKey: process.env.HASHU_API_KEY || '',
+  hashuApiBase: process.env.HASHU_API_BASE || 'https://hashu-apis-production.up.railway.app',
+ 
+  // Railway provides PORT automatically
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'production'
 };
-
+ 
 module.exports = config;
+ 
