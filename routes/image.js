@@ -11,8 +11,8 @@ const router = express.Router();
 // The image API works far more reliably with clean English prompts than
 // with Sinhala script or romanized Singlish ("pusekge photo ekak hdla
 // denna" etc — the possessive/verb suffixes confuse it into generating
-// something unrelated). So before generating, we ask the same freechat
-// model to translate/clean the prompt into a short English image-prompt.
+// something unrelated). So before generating, we ask the Chama chatgpt
+// endpoint to translate/clean the prompt into a short English image-prompt.
 // If translation fails for any reason, we just fall back to the original
 // text rather than blocking the request.
 async function toEnglishImagePrompt(rawPrompt) {
@@ -21,7 +21,7 @@ async function toEnglishImagePrompt(rawPrompt) {
       `Translate/rewrite the following into a short, clear English text-to-image ` +
       `prompt describing the scene. Output ONLY the prompt text itself — no quotes, ` +
       `no explanation, no extra words.\n\nInput: ${rawPrompt}\nEnglish image prompt:`;
-    const url = `${config.hashuApiBase}/api/ai/freechat?apiKey=${encodeURIComponent(config.hashuApiKey)}&text=${encodeURIComponent(instruction)}`;
+    const url = `${config.chamaApiBase}/api/v1/media/ai/chatgpt?q=${encodeURIComponent(instruction)}&api_key=${encodeURIComponent(config.chamaApiKey)}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     let upstream;
@@ -32,7 +32,7 @@ async function toEnglishImagePrompt(rawPrompt) {
     }
     if (!upstream.ok) return rawPrompt;
     const data = await upstream.json();
-    const translated = (data.results && data.results.reply) || data.result || data.reply;
+    const translated = data.status && data.response;
     return (translated && translated.trim()) ? translated.trim() : rawPrompt;
   } catch (err) {
     console.error('Prompt translation failed, using original:', err.name, err.message);
@@ -62,8 +62,8 @@ router.post('/generate', requireAuth, (req, res, next) => {
     if (!prompt || !prompt.trim()) {
       return res.status(400).json({ success: false, error: 'A prompt is required' });
     }
-    if (!config.sasaApiKey) {
-      return res.status(500).json({ success: false, error: 'Image API key not configured on server' });
+    if (!config.hashuApiKey) {
+      return res.status(500).json({ success: false, error: 'AI API key not configured on server' });
     }
 
     let conversation = null;
@@ -74,15 +74,8 @@ router.post('/generate', requireAuth, (req, res, next) => {
       }
     }
 
-    // Sasa Dev's "zoner" endpoint — returns the generated image directly as
-    // raw bytes (same shape as the old /api/aiimage call), just on a
-    // different provider/host with different param names (p= instead of
-    // text=, plus a required size=value param).
-    let englishPrompt = await toEnglishImagePrompt(prompt.trim());
-    // Sasa Dev's server enforces a fairly tight URL length limit (same as
-    // seen on their /gemini endpoint), so keep the prompt short just in case.
-    if (englishPrompt.length > 300) englishPrompt = englishPrompt.slice(0, 300);
-    const url = `${config.sasaApiBase}/api/ai/image/zoner?apikey=${encodeURIComponent(config.sasaApiKey)}&p=${encodeURIComponent(englishPrompt)}&size=value`;
+    const englishPrompt = await toEnglishImagePrompt(prompt.trim());
+    const url = `${config.hashuApiBase}/api/aiimage?apiKey=${encodeURIComponent(config.hashuApiKey)}&text=${encodeURIComponent(englishPrompt)}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
     let upstream;
