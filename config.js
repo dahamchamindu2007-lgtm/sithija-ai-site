@@ -2,7 +2,7 @@ const config = {
   // REQUIRED on Railway
   mongodbUri: process.env.MONGODB_URI || 'mongodb+srv://actqwg7789_db_user:sithija123456@cluster0.3vzsn08.mongodb.net/',
   jwtSecret: process.env.JWT_SECRET || '3b9018e1f3986250dd700911f4be703365cb6d1a5952d89bfe3dbd776895aad5',
-  ownerEmail: (process.env.OWNER_EMAIL || 'sithijaanuhas87@gmail.com').toLowerCase(),
+  ownerEmail: (process.env.OWNER_EMAIL || 'dahamchamindu2007@gmail.com').toLowerCase(),
 
   // Google sign-in / Gmail OTP
   googleClientId: process.env.GOOGLE_CLIENT_ID || '456111260958-t34o7cskeirlo5tt5d3im2h5val7mg92.apps.googleusercontent.com',
@@ -23,11 +23,17 @@ const config = {
   // Google answers 404 (retired model) or 5xx/429 the next one is tried.
   // NOTE: all gemini-2.5-* models were retired by Google in mid-2026.
   geminiModels: {
+    // All three tiers use models that are FREE on the Gemini API free tier.
+    // (gemini-*-pro-* and all image models are paid-only.)
     'sithi-lite': process.env.GEMINI_MODEL_LITE || 'gemini-3.1-flash-lite-preview,gemini-3.5-flash',
-    'sithi-normal': process.env.GEMINI_MODEL_NORMAL || 'gemini-3.5-flash,gemini-3-flash-preview,gemini-3.1-flash-lite-preview',
-    'sithi-pro': process.env.GEMINI_MODEL_PRO || 'gemini-3.1-pro-preview,gemini-3.5-flash'
+    'sithi-normal': process.env.GEMINI_MODEL_NORMAL || 'gemini-3.5-flash,gemini-3.1-flash-lite-preview',
+    'sithi-pro': process.env.GEMINI_MODEL_PRO || 'gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite-preview'
   },
+  // Image models have NO free tier — image generation needs billing enabled on the key's project.
   geminiImageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview,gemini-3-pro-image-preview',
+
+  // Set DEBUG_AI_ERRORS=true temporarily to show Google's real error text to every user.
+  debugErrors: process.env.DEBUG_AI_ERRORS === 'true',
 
   // Railway provides PORT automatically
   port: process.env.PORT || 3000,
