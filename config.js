@@ -19,13 +19,15 @@ const config = {
   geminiApiBase: process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com',
 
   // Models (override with env vars if Google renames/retires one).
-  // The three chat tiers in the UI map to these models.
+  // Each value can be a comma-separated list: the first is tried first, and if
+  // Google answers 404 (retired model) or 5xx/429 the next one is tried.
+  // NOTE: all gemini-2.5-* models were retired by Google in mid-2026.
   geminiModels: {
-    'sithi-lite': process.env.GEMINI_MODEL_LITE || 'gemini-2.5-flash-lite',
-    'sithi-normal': process.env.GEMINI_MODEL_NORMAL || 'gemini-2.5-flash',
-    'sithi-pro': process.env.GEMINI_MODEL_PRO || 'gemini-2.5-pro'
+    'sithi-lite': process.env.GEMINI_MODEL_LITE || 'gemini-3.1-flash-lite-preview,gemini-3.5-flash',
+    'sithi-normal': process.env.GEMINI_MODEL_NORMAL || 'gemini-3.5-flash,gemini-3-flash-preview,gemini-3.1-flash-lite-preview',
+    'sithi-pro': process.env.GEMINI_MODEL_PRO || 'gemini-3.1-pro-preview,gemini-3.5-flash'
   },
-  geminiImageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image',
+  geminiImageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview,gemini-3-pro-image-preview',
 
   // Railway provides PORT automatically
   port: process.env.PORT || 3000,
