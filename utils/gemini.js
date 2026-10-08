@@ -88,4 +88,23 @@ async function generateImage({ model, prompt, timeoutMs = 55000 }) {
   return `data:${mime};base64,${inline.data}`;
 }
 
-module.exports = { generateText, generateImage };
+// Try each model in a comma-separated list until one works. Only moves on for
+// "model problem" errors (404 retired/unknown, 429, 5xx, timeouts); auth
+// errors (400/401/403) and safety blocks are returned immediately.
+async function withModelFallback(models, fn) {
+  const list = Array.isArray(models) ? models : String(models).split(',').map(m => m.trim()).filter(Boolean);
+  let lastErr;
+  for (const model of list) {
+    try {
+      return await fn(model);
+    } catch (e) {
+      lastErr = e;
+      const retryable = e.status === 404 || e.status === 429 || (e.status >= 500) || e.name === 'AbortError';
+      console.error(`Gemini model "${model}" failed:`, e.status || e.name, e.message);
+      if (!retryable) break;
+    }
+  }
+  throw lastErr;
+}
+
+module.exports = { generateText, generateImage, withModelFallback };
