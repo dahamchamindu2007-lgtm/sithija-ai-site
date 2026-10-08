@@ -15,7 +15,7 @@ const config = {
 
   // REQUIRED: Google Gemini API key — powers BOTH text chat (chat.js) and
   // image generation (image.js). Set GEMINI_API_KEY in Railway/Vercel/.env.
-  geminiApiKey: (process.env.GEMINI_API_KEY || 'AQ.Ab8RN6IucAc5kPi69Wfnk1BsyLrdDF91gapXnnoP-4_HPPj-Mg').trim().replace(/^["']|["']$/g, '').trim(),
+  geminiApiKey: (process.env.GEMINI_API_KEY || 'AQ.Ab8RN6KHOgmfdlcKjaGV1NajwDFTuhVfP1lbf-EJ0sTXk4HHpQ').trim().replace(/^["']|["']$/g, '').trim(),
   geminiApiBase: process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com',
 
   // Models (override with env vars if Google renames/retires one).
