@@ -142,7 +142,7 @@ app.get('/p/:slug', async (req, res) => {
 const requiredConfig = [
   ['MONGODB_URI', config.mongodbUri],
   ['JWT_SECRET', config.jwtSecret],
-  ['CHAMA_API_KEY', config.chamaApiKey],
+  ['GEMINI_API_KEY', config.geminiApiKey],
   ['OWNER_EMAIL', config.ownerEmail]
 ].filter(([, value]) => !value || !String(value).trim());
 
