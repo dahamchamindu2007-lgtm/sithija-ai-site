@@ -57,7 +57,9 @@ router.post('/generate', requireAuth, (req, res, next) => {
         return res.status(502).json({ success: false, error: 'Image service is busy or out of quota right now, try again shortly' });
       }
       if (e.status === 400 || e.status === 401 || e.status === 403) {
-        return res.status(502).json({ success: false, error: 'Image service rejected the request — check GEMINI_API_KEY and that image generation is enabled for it' });
+        // Show Google's real reason to the owner only; regular users get a generic message.
+        const detail = req.user.isOwner ? ` (Google ${e.status}: ${String(e.message).slice(0, 200)})` : '';
+        return res.status(502).json({ success: false, error: 'Image service rejected the request — check GEMINI_API_KEY on the server' + detail });
       }
       if (e.name === 'AbortError') {
         return res.status(502).json({ success: false, error: 'Image service took too long to respond, try again' });
