@@ -4,7 +4,7 @@ const { checkRateLimit } = require('../middleware/rateLimiter');
 const { getSettings } = require('../models/Settings');
 const config = require('../config');
 const Conversation = require('../models/Conversations');
-const { generateImage } = require('../utils/gemini');
+const { generateImage, withModelFallback } = require('../utils/gemini');
 
 const router = express.Router();
 
@@ -44,10 +44,10 @@ router.post('/generate', requireAuth, (req, res, next) => {
 
     let dataUri;
     try {
-      dataUri = await generateImage({
-        model: config.geminiImageModel,
+      dataUri = await withModelFallback(config.geminiImageModel, m => generateImage({
+        model: m,
         prompt: `Generate an image: ${prompt.trim()}`
-      });
+      }));
     } catch (e) {
       console.error('Gemini image error:', e.name, e.message, e.upstream ? JSON.stringify(e.upstream).slice(0, 500) : '');
       if (e.blocked) {
@@ -64,7 +64,8 @@ router.post('/generate', requireAuth, (req, res, next) => {
       if (e.name === 'AbortError') {
         return res.status(502).json({ success: false, error: 'Image service took too long to respond, try again' });
       }
-      return res.status(502).json({ success: false, error: 'Image service unavailable, try again' });
+      const detail = req.user.isOwner ? ` (${e.status || e.name}: ${String(e.message).slice(0, 200)})` : '';
+      return res.status(502).json({ success: false, error: 'Image service unavailable, try again' + detail });
     }
 
     if (conversation) {
