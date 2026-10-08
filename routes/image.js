@@ -54,17 +54,17 @@ router.post('/generate', requireAuth, (req, res, next) => {
         return res.status(422).json({ success: false, error: 'The image could not be generated for that prompt. Try describing it differently.' });
       }
       if (e.status === 429) {
-        return res.status(502).json({ success: false, error: 'Image service is busy or out of quota right now, try again shortly' });
+        return res.status(502).json({ success: false, error: 'Image generation has no free quota on Gemini — enable billing on the API key, or try again shortly' });
       }
       if (e.status === 400 || e.status === 401 || e.status === 403) {
         // Show Google's real reason to the owner only; regular users get a generic message.
-        const detail = req.user.isOwner ? ` (Google ${e.status}: ${String(e.message).slice(0, 200)})` : '';
-        return res.status(502).json({ success: false, error: 'Image service rejected the request — check GEMINI_API_KEY on the server' + detail });
+        const detail = (req.user.isOwner || config.debugErrors) ? ` (Google ${e.status}: ${String(e.message).slice(0, 200)})` : '';
+        return res.status(502).json({ success: false, error: 'Image service rejected the request — Gemini image models are paid-only, so billing must be enabled for this API key' + detail });
       }
       if (e.name === 'AbortError') {
         return res.status(502).json({ success: false, error: 'Image service took too long to respond, try again' });
       }
-      const detail = req.user.isOwner ? ` (${e.status || e.name}: ${String(e.message).slice(0, 200)})` : '';
+      const detail = (req.user.isOwner || config.debugErrors) ? ` (${e.status || e.name}: ${String(e.message).slice(0, 200)})` : '';
       return res.status(502).json({ success: false, error: 'Image service unavailable, try again' + detail });
     }
 
