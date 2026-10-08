@@ -6,7 +6,7 @@ const Conversation = require('../models/Conversations');
 const { getSettings } = require('../models/Settings');
 const { runWithPriority } = require('../utils/requestQueue');
 const { isInsultToCreator, STRIKE_LIMIT } = require('../utils/insultFilter');
-const fetch = require('../utils/httpFetch');
+const { generateText } = require('../utils/gemini');
 
 const router = express.Router();
 
@@ -94,7 +94,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       }
     }
 
-    if (!config.chamaApiKey) {
+    if (!config.geminiApiKey) {
       return res.status(500).json({ success: false, error: 'AI API key not configured on server' });
     }
 
@@ -126,73 +126,38 @@ router.post('/', requireAuth, async (req, res, next) => {
       `to know otherwise. You also cannot generate or edit images yourself in this reply — ` +
       `if asked for one, just briefly say you'll create it, without any login/account caveat.`;
 
-    // The upstream Chama chatgpt endpoint is stateless (no conversation
-    // memory, no model selection) — it has no idea what was said earlier in
-    // this conversation. So we build a short transcript of the last few
-    // turns and prepend it to the new message as context. This is what lets
-    // the AI "remember" things like "the 3rd one" referring to something
-    // mentioned a few messages back.
-    let promptText;
-    if (conversation && conversation.messages.length > 0) {
-      const HISTORY_TURNS = 10; // last N messages (user+ai combined)
-      const recent = conversation.messages.slice(-HISTORY_TURNS);
-      const transcript = recent
-        .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-        .join('\n');
-      promptText =
-        `${PERSONA}\n\n` +
-        `${fileBlock}` +
-        `Here is the recent conversation so far, for context. Continue naturally and ` +
-        `remember details already mentioned (numbers, names, previous questions, etc).\n\n` +
-        `${transcript}\nUser: ${text}\nAssistant:`;
-    } else {
-      promptText = `${PERSONA}\n\n${fileBlock}User: ${text}\nAssistant:`;
-    }
-
-    // Chama's chatgpt endpoint has no model-selection param — the `model`
-    // field from the request body is kept only as the cosmetic tier label
-    // returned to the frontend below, it no longer changes which upstream
-    // model actually answers.
-    const url = `${config.chamaApiBase}/api/v1/media/ai/chatgpt?q=${encodeURIComponent(promptText)}&api_key=${encodeURIComponent(config.chamaApiKey)}`;
+    // Gemini supports real multi-turn history + a system instruction, so we
+    // pass the last few turns as proper chat messages instead of a flat transcript.
+    const HISTORY_TURNS = 10; // last N messages (user+ai combined)
+    const history = conversation ? conversation.messages.slice(-HISTORY_TURNS) : [];
+    const userText = `${fileBlock}${text}`;
+    const model = config.geminiModels[tier];
 
     // Pro/owner requests get priority in the queue, so if several people hit
-    // the AI at the same moment, Pro replies come back first. Free users
-    // still get answered — they just wait behind Pro ones when it's busy.
+    // the AI at the same moment, Pro replies come back first.
     const priority = (req.user.isPro || req.user.isOwner) ? 1 : 0;
 
-    // Vercel's default function timeout (10s on Hobby, higher on Pro) kills
-    // the whole request with no useful error if the upstream call hangs.
-    // Aborting a bit early lets us return a clear, specific message instead
-    // of the platform's generic timeout/crash.
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
-    let upstream;
+    let reply;
     try {
-      upstream = await runWithPriority(() => fetch(url, { signal: controller.signal }), priority);
-    } finally {
-      clearTimeout(timeout);
-    }
-    const data = await upstream.json();
-
-    // Chama's response shape on success: { status: true, response: "...", owner, thanks }
-    // On failure it's { status: false, detail: "..." } — e.g. a quota/coins
-    // exhausted message. Log the raw body so the real reason shows up in
-    // server logs even when we show the user a shorter message.
-    if (!data.status) {
-      console.error('Chama API returned an error:', JSON.stringify(data));
-      const upstreamReason = data.detail || data.message || data.error || '';
-      const isQuota = /quota|coins?\s*exhaust|upgrade\s+your\s+plan/i.test(upstreamReason);
-      return res.status(502).json({
-        success: false,
-        error: isQuota
-          ? 'AI service is out of quota for this API key. Set a fresh CHAMA_API_KEY (see .env.example) or top up on the Chama API Dashboard.'
-          : (upstreamReason || 'AI service returned an error')
-      });
-    }
-
-    let reply = data.response;
-    if (!reply) {
-      return res.status(502).json({ success: false, error: 'AI service returned an empty response' });
+      reply = await runWithPriority(
+        () => generateText({ model, systemPrompt: PERSONA, history, userText }),
+        priority
+      );
+    } catch (e) {
+      console.error('Gemini chat error:', e.name, e.message, e.upstream ? JSON.stringify(e.upstream).slice(0, 500) : '');
+      if (e.blocked) {
+        return res.status(422).json({ success: false, error: 'The AI could not answer that message. Try rephrasing it.' });
+      }
+      if (e.status === 429) {
+        return res.status(502).json({ success: false, error: 'AI service is busy or out of quota right now, try again shortly' });
+      }
+      if (e.status === 400 || e.status === 401 || e.status === 403) {
+        return res.status(502).json({ success: false, error: 'AI service rejected the request — check GEMINI_API_KEY on the server' });
+      }
+      if (e.name === 'AbortError') {
+        return res.status(502).json({ success: false, error: 'AI service took too long to respond, try again' });
+      }
+      return res.status(502).json({ success: false, error: 'AI service unavailable, try again' });
     }
 
     // Safety net: the PERSONA instruction above usually stops the model from
