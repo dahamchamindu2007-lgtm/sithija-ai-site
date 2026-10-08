@@ -99,7 +99,9 @@ async function withModelFallback(models, fn) {
       return await fn(model);
     } catch (e) {
       lastErr = e;
-      const retryable = e.status === 404 || e.status === 429 || (e.status >= 500) || e.name === 'AbortError';
+      const keyProblem = /api key|api_key|key expired|invalid.*key/i.test(e.message || '');
+      const retryable = e.status === 404 || e.status === 429 || (e.status >= 500) || e.name === 'AbortError' ||
+        ((e.status === 400 || e.status === 403) && !keyProblem); // e.g. model not allowed on this plan
       console.error(`Gemini model "${model}" failed:`, e.status || e.name, e.message);
       if (!retryable) break;
     }
