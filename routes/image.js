@@ -4,51 +4,15 @@ const { checkRateLimit } = require('../middleware/rateLimiter');
 const { getSettings } = require('../models/Settings');
 const config = require('../config');
 const Conversation = require('../models/Conversations');
-const fetch = require('../utils/httpFetch');
+const { generateImage } = require('../utils/gemini');
 
 const router = express.Router();
 
-// The image API works far more reliably with clean English prompts than
-// with Sinhala script or romanized Singlish ("pusekge photo ekak hdla
-// denna" etc — the possessive/verb suffixes confuse it into generating
-// something unrelated). So before generating, we ask the Chama chatgpt
-// endpoint to translate/clean the prompt into a short English image-prompt.
-// If translation fails for any reason, we just fall back to the original
-// text rather than blocking the request.
-async function toEnglishImagePrompt(rawPrompt) {
-  try {
-    const instruction =
-      `Translate/rewrite the following into a short, clear English text-to-image ` +
-      `prompt describing the scene. Output ONLY the prompt text itself — no quotes, ` +
-      `no explanation, no extra words.\n\nInput: ${rawPrompt}\nEnglish image prompt:`;
-    const url = `${config.chamaApiBase}/api/v1/media/ai/chatgpt?q=${encodeURIComponent(instruction)}&api_key=${encodeURIComponent(config.chamaApiKey)}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    let upstream;
-    try {
-      upstream = await fetch(url, { signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
-    }
-    if (!upstream.ok) return rawPrompt;
-    const data = await upstream.json();
-    if (!data.status) {
-      console.error('Chama API error during prompt translation:', JSON.stringify(data));
-      return rawPrompt;
-    }
-    const translated = data.response;
-    return (translated && translated.trim()) ? translated.trim() : rawPrompt;
-  } catch (err) {
-    console.error('Prompt translation failed, using original:', err.name, err.message);
-    return rawPrompt;
-  }
-}
-
 // POST /api/image/generate  { prompt: "...", conversationId: "..." }
-// Proxies to Hashu-APIs' /api/aiimage endpoint, which returns the image
-// bytes directly (not JSON). We stream those bytes back as base64 so the
-// frontend can render + persist them without a second round trip, and so
-// the real HASHU_API_KEY never reaches the browser.
+// Uses Google Gemini's image model. Gemini understands Sinhala / Singlish
+// prompts directly, so no separate translation step is needed. The image
+// comes back as base64, which we return as a data: URI so the frontend can
+// render + persist it, and the API key never reaches the browser.
 router.post('/generate', requireAuth, (req, res, next) => {
   if (!req.user.isOwner) {
     getSettings().then(settings => {
@@ -66,7 +30,7 @@ router.post('/generate', requireAuth, (req, res, next) => {
     if (!prompt || !prompt.trim()) {
       return res.status(400).json({ success: false, error: 'A prompt is required' });
     }
-    if (!config.hashuApiKey) {
+    if (!config.geminiApiKey) {
       return res.status(500).json({ success: false, error: 'AI API key not configured on server' });
     }
 
@@ -78,32 +42,28 @@ router.post('/generate', requireAuth, (req, res, next) => {
       }
     }
 
-    const englishPrompt = await toEnglishImagePrompt(prompt.trim());
-    const url = `${config.hashuApiBase}/api/aiimage?apiKey=${encodeURIComponent(config.hashuApiKey)}&text=${encodeURIComponent(englishPrompt)}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-    let upstream;
+    let dataUri;
     try {
-      upstream = await fetch(url, { signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!upstream.ok) {
+      dataUri = await generateImage({
+        model: config.geminiImageModel,
+        prompt: `Generate an image: ${prompt.trim()}`
+      });
+    } catch (e) {
+      console.error('Gemini image error:', e.name, e.message, e.upstream ? JSON.stringify(e.upstream).slice(0, 500) : '');
+      if (e.blocked) {
+        return res.status(422).json({ success: false, error: 'The image could not be generated for that prompt. Try describing it differently.' });
+      }
+      if (e.status === 429) {
+        return res.status(502).json({ success: false, error: 'Image service is busy or out of quota right now, try again shortly' });
+      }
+      if (e.status === 400 || e.status === 401 || e.status === 403) {
+        return res.status(502).json({ success: false, error: 'Image service rejected the request — check GEMINI_API_KEY and that image generation is enabled for it' });
+      }
+      if (e.name === 'AbortError') {
+        return res.status(502).json({ success: false, error: 'Image service took too long to respond, try again' });
+      }
       return res.status(502).json({ success: false, error: 'Image service unavailable, try again' });
     }
-
-    const contentType = upstream.headers.get('content-type') || 'image/png';
-    if (!contentType.startsWith('image/')) {
-      // Upstream returned an error body (JSON/text) instead of an image
-      const bodyText = await upstream.text();
-      console.error('aiimage non-image response:', bodyText.slice(0, 300));
-      return res.status(502).json({ success: false, error: 'Image service returned an unexpected response' });
-    }
-
-    const arrayBuffer = await upstream.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    const dataUri = `data:${contentType};base64,${base64}`;
 
     if (conversation) {
       conversation.messages.push({ role: 'user', content: `🎨 ${prompt.trim()}` });
@@ -124,11 +84,7 @@ router.post('/generate', requireAuth, (req, res, next) => {
     });
   } catch (err) {
     console.error('Image generation error:', err.name, err.message, err.cause || '');
-    const timedOut = err.name === 'AbortError';
-    res.status(502).json({
-      success: false,
-      error: timedOut ? 'Image service took too long to respond, try again' : 'Image service unavailable, try again'
-    });
+    res.status(502).json({ success: false, error: 'Image service unavailable, try again' });
   }
 });
 
