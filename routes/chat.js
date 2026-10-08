@@ -6,7 +6,7 @@ const Conversation = require('../models/Conversations');
 const { getSettings } = require('../models/Settings');
 const { runWithPriority } = require('../utils/requestQueue');
 const { isInsultToCreator, STRIKE_LIMIT } = require('../utils/insultFilter');
-const { generateText } = require('../utils/gemini');
+const { generateText, withModelFallback } = require('../utils/gemini');
 
 const router = express.Router();
 
@@ -140,7 +140,7 @@ router.post('/', requireAuth, async (req, res, next) => {
     let reply;
     try {
       reply = await runWithPriority(
-        () => generateText({ model, systemPrompt: PERSONA, history, userText }),
+        () => withModelFallback(model, m => generateText({ model: m, systemPrompt: PERSONA, history, userText })),
         priority
       );
     } catch (e) {
@@ -159,7 +159,8 @@ router.post('/', requireAuth, async (req, res, next) => {
       if (e.name === 'AbortError') {
         return res.status(502).json({ success: false, error: 'AI service took too long to respond, try again' });
       }
-      return res.status(502).json({ success: false, error: 'AI service unavailable, try again' });
+      const detail = req.user.isOwner ? ` (${e.status || e.name}: ${String(e.message).slice(0, 200)})` : '';
+      return res.status(502).json({ success: false, error: 'AI service unavailable, try again' + detail });
     }
 
     // Safety net: the PERSONA instruction above usually stops the model from
