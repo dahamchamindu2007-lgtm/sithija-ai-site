@@ -152,7 +152,9 @@ router.post('/', requireAuth, async (req, res, next) => {
         return res.status(502).json({ success: false, error: 'AI service is busy or out of quota right now, try again shortly' });
       }
       if (e.status === 400 || e.status === 401 || e.status === 403) {
-        return res.status(502).json({ success: false, error: 'AI service rejected the request — check GEMINI_API_KEY on the server' });
+        // Show Google's real reason to the owner only; regular users get a generic message.
+        const detail = req.user.isOwner ? ` (Google ${e.status}: ${String(e.message).slice(0, 200)})` : '';
+        return res.status(502).json({ success: false, error: 'AI service rejected the request — check GEMINI_API_KEY on the server' + detail });
       }
       if (e.name === 'AbortError') {
         return res.status(502).json({ success: false, error: 'AI service took too long to respond, try again' });
