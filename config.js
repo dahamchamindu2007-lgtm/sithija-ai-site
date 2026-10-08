@@ -13,19 +13,23 @@ const config = {
   gmailSenderName: process.env.GMAIL_SENDER_NAME || 'Mr Sithija AI',
   gmailSetupKey: process.env.GMAIL_SETUP_KEY || 'change-this-setup-key-before-deploying',
 
-// REQUIRED for AI text chat (chat.js) — Chama Movie API's ChatGPT proxy
-  chamaApiKey: process.env.CHAMA_API_KEY || 'chama_api_90569a61c96bdb95a2f1a71d16f6e95e',
-  chamaApiBase: process.env.CHAMA_API_BASE || 'https://chama-movie-api.koyeb.app',
- 
-  // REQUIRED for AI image generation (image.js) — no replacement provided
-  // for this endpoint, so it still runs on the original Hashu API.
-  hashuApiKey: process.env.HASHU_API_KEY || '',
-  hashuApiBase: process.env.HASHU_API_BASE || 'https://hashu-apis-production.up.railway.app',
- 
+  // REQUIRED: Google Gemini API key — powers BOTH text chat (chat.js) and
+  // image generation (image.js). Set GEMINI_API_KEY in Railway/Vercel/.env.
+  geminiApiKey: process.env.GEMINI_API_KEY || 'AQ.Ab8RN6IucAc5kPi69Wfnk1BsyLrdDF91gapXnnoP-4_HPPj-Mg',
+  geminiApiBase: process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com',
+
+  // Models (override with env vars if Google renames/retires one).
+  // The three chat tiers in the UI map to these models.
+  geminiModels: {
+    'sithi-lite': process.env.GEMINI_MODEL_LITE || 'gemini-2.5-flash-lite',
+    'sithi-normal': process.env.GEMINI_MODEL_NORMAL || 'gemini-2.5-flash',
+    'sithi-pro': process.env.GEMINI_MODEL_PRO || 'gemini-2.5-pro'
+  },
+  geminiImageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image',
+
   // Railway provides PORT automatically
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'production'
 };
  
 module.exports = config;
- 
